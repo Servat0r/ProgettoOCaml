@@ -7,6 +7,7 @@ type exp = EInt of int
 		| True 
 		| False
 		| Den of ide
+		| EString of string
 		| Sum of exp * exp
 		| Sub of exp * exp
 		| Times of exp * exp
@@ -22,7 +23,7 @@ type exp = EInt of int
 type 't env = string -> 't
 
 (* Evaluation types = tipi primitivi esprimibili; le chiusure sono ricorsive di default *)
-type evT = Int of int | Bool of bool | Closure of ide * exp * evT env | RecClosure of ide * ide * exp * evT env | UnBound
+type evT = Int of int | Bool of bool |String of string | Closure of ide * exp * evT env | RecClosure of ide * ide * exp * evT env | UnBound
 
 exception TypeError
 exception SyntaxError
@@ -59,6 +60,11 @@ let typecheck (x, y) = match x with
                         | Bool(u) -> true
                         | _ -> false
 						)
+		| "string" ->
+				(match y with
+					|String(u) -> true
+					| _ -> false
+				)
         | _ -> raise TypeError
 
 
@@ -97,6 +103,7 @@ let rec eval (e:exp) (s:evT env) = match e with
 	| EInt(n) -> Int(n)
 	| True -> Bool(true)
 	| False -> Bool(false)
+	| EString(s) -> String(s)
 
 	| Eq(e1, e2) -> int_eq((eval e1 s), (eval e2 s))
 	| Times(e1,e2) -> int_times((eval e1 s), (eval e2 s))
@@ -104,7 +111,7 @@ let rec eval (e:exp) (s:evT env) = match e with
 	| Sub(e1, e2) -> int_sub((eval e1 s), (eval e2 s))
 	| Pow(e1,e2) -> int_pow((eval e1 s),(eval e2 s))
 
-	| IfThenElse(e1,e2,e3) -> let g = eval e1 s in
+	| IfThenElse(e1,e2,e3) -> let g = eval e1 s in (* PROBLEMA: Ma così non si sa che tipo hanno le espressioni e2 ed e3; andrebbe introdotta una getType *)
 		(match (typecheck("bool", g), g) with
 			| (true, Bool(true)) -> eval e2 s
 			| (true, Bool(false)) -> eval e3 s
@@ -129,23 +136,3 @@ let rec eval (e:exp) (s:evT env) = match e with
 				let aenv = bind rEnv arg aVal in 
 						eval fbody aenv
 			| _ -> raise ValueError)
-
-
-
-let a = Let("x", EInt(2), Let("y", EInt(3), Let("z", Sum(Den("x"), Den("y")), Letrec("fact", "n", IfThenElse(Eq(Den("n"), EInt(1)), EInt(1), Times(Den("n"), Apply(Den("fact"), Sub(Den("n"), EInt(1))))), Apply(Den("fact"), EInt (8))))))
-
-
-(* Test per funzioni ricorsive (ok) *)
-let a' = Let("x",EInt 6,Letrec("fact","n",IfThenElse(Eq(Den("n"), EInt 1), EInt 1, Times(Den("n"), Apply(Den("fact"), Sub(Den("n"), EInt 1)))),Apply(Den("fact"), Den "x")))
-
-(* Test per scoping statico (ok) *)
-let a'' = Let("n", EInt 5, Let("f", Fun("x", Sum(Den("x"), Den("n"))), Let("n", EInt 67, Apply(Den("f"), EInt 5))))
-
-let rec print_res (a : exp) =
-    let b = eval a global_envt in match b with
-        | Int n -> print_int n; Printf.printf("\n")
-        | Bool b -> if b then print_int 1 else print_int 0; Printf.printf("\n")
-        | _ -> failwith("Ornitorinco")
-;;
-
-print_res a; print_res a'; print_res a'';;
