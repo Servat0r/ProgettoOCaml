@@ -6,7 +6,13 @@
 type ide = string;;
 
 (* "Nomi" dei tipi di dato presenti per migliorare la leggibilità, anziché usare degli string literals come "int", "bool" etc *)
-type tname = TInt | TBool | TString | TClosure | TRecClosure | TSet of tname | TUnBound
+type tname = TInt 
+	| TBool 
+	| TString 
+	| TClosure of tname * tname (* tname1 = tipo dell'argomento; tname2 = tipo del risultato *)
+	| TRecClosure of tname * tname (* tname1 = tipo dell'argomento; tname2 = tipo del risultato *)
+	| TSet of tname 
+	| TUnBound
 
 (* Abstract Expressions = espressioni nella sintassi astratta, compongono l'Albero di Sintassi Astratta *)
 type exp = EInt of int
@@ -30,12 +36,14 @@ type exp = EInt of int
 		| Not of exp
 		(* Controllo del flusso, assegnamenti, funzioni *)
 		| IfThenElse of exp * exp * exp
-		| Let of ide * exp * exp
-		| Letrec of ide * ide * exp * exp
-		| Fun of ide * exp
+		| Let of ide * exp * exp (* ide = nome della variabile; exp1 = valore della variabile; exp2 = espressione da valutare *)
+		| Letrec of ide * ide * tname * tname * exp * exp (* ide1 = nome della funzione; ide2 = nome dell'argomento; tname1 = tipo della funzione;
+		exp1 = corpo della funzione; exp2 = espressione da valutare *)
+		| Fun of ide * tname * tname * exp (* NON più polimorfe (necessario per controllare che si passi un predicato a For_all, Exists etc);
+		ide = argomento della funzione; tname = tipo della funzione; exp = corpo della funzione *)
 		| Apply of exp * exp
 		(* Costruttori di insiemi *)
-		| Empty of tname (* Insieme vuoto *) 
+		| Empty of tname (* Insieme vuoto *)
 		| Singleton of tname*exp (* Insieme con un solo elemento *)
 		| Of of tname*(exp list) (* Insieme con uno o più elementi *)
 		(* Operatori unari su insiemi*)
@@ -57,8 +65,15 @@ type exp = EInt of int
 type 't env = string -> 't
 
 (* Evaluation types = tipi primitivi esprimibili; le chiusure sono ricorsive di default *)
-type evT = Int of int | Bool of bool | String of string | Closure of ide * exp * evT env | RecClosure of ide * ide * exp * evT env 
-| Set of tname*(evT list) | UnBound 
+type evT = Int of int 
+	| Bool of bool 
+	| String of string 
+	| Closure of ide * tname * tname * exp * evT env (* ide = nome dell'argomento; tname = tipo della funzione; exp = corpo della funzione; evT env =
+	ambiente della funzione *)
+	| RecClosure of ide * ide * tname * tname * exp * evT env (* ide1 = nome della funzione; ide2 = nome dell'argomento; tname = tipo della funzione; 
+	exp = corpo della funzione; evT env = ambiente della funzione*) 
+	| Set of tname*(evT list)
+	| UnBound
 
 (* Da utilizzare per operazioni o funzioni applicate a oggetti di tipo non corretto *)
 exception TypeError
@@ -70,8 +85,8 @@ let (getType : evT -> tname) = function x -> match x with
 	| Int(n) -> TInt
 	| Bool(b) -> TBool
 	| String(s) -> TString
-	| Closure(i,e,en) -> TClosure
-	| RecClosure(i,j,e,en) -> TRecClosure
+	| Closure(i,t1, t2,e,en) -> TClosure(t1, t2)
+	| RecClosure(i,j,t1, t2,e,en) -> TRecClosure(t1, t2)
 	| Set(t,l) -> TSet(t)
 	| UnBound -> TUnBound
 
@@ -112,14 +127,14 @@ let typecheck (x, y) = match x with
 						in sameType t l else false)
 					| _ -> false
 				)
-        | TClosure -> 
+        | TClosure(t1, t2) -> 
 				(match y with
-					| Closure(i,e,n) -> true
+					| Closure(i,t1',t2',e,n) -> if (t1 = t1') && (t2 = t2') then true else false
 					| _ -> false
 				)
-		| TRecClosure -> 
+		| TRecClosure(t1, t2) -> 
 				(match y with
-					| RecClosure(i,j,e,n) -> true
+					| RecClosure(i,j,t1',t2',e,n) -> if (t1 = t1') && (t2 = t2') then true else false
 					| _ -> false
 				)
 		|TUnBound -> 
@@ -164,7 +179,7 @@ let rec list_remove l x = match l with
 (* Calcola il massimo fra due elementi di tipo Int / Bool / String *)
 let max (a,b) = match (a,b) with
 	| (Int(p), Int(q)) -> if (compare p q) = 1 then a else b
-	| (Bool(p), Bool(q)) -> if (compare p q) = 1 then a else b   
+	| (Bool(p), Bool(q)) -> if (compare p q) = 1 then a else b
 	| (String(p), String(q)) -> if (compare p q) = 1 then a else b
 	| _ -> failwith("Uncomparable values")
 
@@ -189,13 +204,6 @@ let rec list_min t l = if (t = TInt || t = TBool || t = TString) then (match l w
 	| p::q::m -> min(p, list_min t (q::m))
 ) else raise TypeError
 
-let rec list_forall p l = raise TypeError
-
-let rec list_exists p l = raise TypeError
-
-let rec list_filter p l = raise TypeError
-
-let rec list_map f l = raise TypeError
 
 
 
@@ -297,31 +305,33 @@ let rec set_getMin(e1) = match e1 with
 	| Set(t,l) -> list_min t l
 	| _ -> raise ValueError
 
-(* Controlla se tutti gli elementi dell'insieme s rispettano la proprietà definita dal predicato p *)
+(* Controlla se tutti gli elementi di s soddisfano la proprietà indicata da p *)
 let rec set_forall(p,s) = match (p,s) with
-	| (Closure(i,e,g), Set(t,l)) -> list_forall p l
-	| (RecClosure(i,j,e,g), Set(t,l)) -> list_forall p l
-	| (_, _) -> raise TypeError
+	| (Closure(x,t1,t2,ex,en), Set(t,l)) -> if (t1 = t) && (t2 = TBool) then (
+	) else raise TypeError
+	| (RecClosure(f,x,t1,t2,ex,en), Set(t,l)) ->
+	| _ -> raise ValueError
 
-(* Controlla se esiste un elemento dell'insieme s che rispetta la proprietà definita dal predicato p *)
+(* Controlla se esiste un elemento in s che soddisfa la proprietà indicata da p *)
 let rec set_exists(p,s) = match (p,s) with
-	| (Closure(i,e,g), Set(t,l)) -> list_exists p l
-	| (RecClosure(i,j,e,g), Set(t,l)) -> list_exists p l
-	| (_, _) -> raise TypeError
+	| (Closure(x,t1,t2,ex,en), Set(t,l)) -> if (t1 = t) && (t2 = TBool) then (
+	) else raise TypeError
+	| (RecClosure(f,x,t1,t2,ex,en), Set(t,l)) ->
+	| _ -> raise ValueError
 
-(* Restituisce un insieme s' che contiene tutti e soli gli elementi dell'insieme s che rispettano la proprietà definita dal predicato p *)
+(* Restituisce un insieme degli elementi di s che soddisfano la proprietà indicata da p *)
 let rec set_filter(p,s) = match (p,s) with
-	| (Closure(i,e,g), Set(t,l)) -> list_filter p l
-	| (RecClosure(i,j,e,g), Set(t,l)) -> list_filter p l
-	| (_, _) -> raise TypeError
+	| (Closure(x,t1,t2,ex,en), Set(t,l)) -> if (t1 = t) && (t2 = TBool) then (
+	) else raise TypeError
+	| (RecClosure(f,x,t1,t2,ex,en), Set(t,l)) ->
+	| _ -> raise ValueError
 
-(* Restituisce l'insieme s' = f(s) = { y : esiste x in s t.c. y = f(x) } *)
-let rec set_map(f,s) = match (f,s) with
-	| (Closure(i,e,g), Set(t,l)) -> list_map f l
-	| (RecClosure(i,j,e,g), Set(t,l)) -> list_map f l
-	| (_, _) -> raise TypeError
-
-
+(* Mappa l'insieme s in un insieme s' t.c. per ogni y in s' esiste x in s t.c. y = f(s) e per ogni x in s, f(x) in s' *)
+let rec set_map(f,s) = match (p,s) with
+	| (Closure(x,t1,t2,ex,en), Set(t,l)) -> if (t1 = t) && (t2 = TBool) then (
+	) else raise TypeError
+	| (RecClosure(f,x,t1,t2,ex,en), Set(t,l)) ->
+	| _ -> raise ValueError
 
 
 (* Valutazione del programma *)
@@ -355,22 +365,26 @@ let rec eval (e:exp) (s:evT env) = match e with
 			| (_, _) -> raise ValueError
 		)
 	| Let(i, e, ebody) -> eval ebody (bind s i (eval e s))
-	| Fun(arg, ebody) -> Closure(arg,ebody,s)
-	| Letrec(f, arg, fBody, leBody) -> 
-	let benv = bind (s) (f) (RecClosure(f, arg, fBody,s)) in
+	| Fun(arg, t1, t2, ebody) -> Closure(arg,t1, t2,ebody,s) (* Ricordando che t = (<tipo_parametro>, <tipo_risultato>) *)
+	| Letrec(f, arg, t1, t2, fBody, leBody) ->
+	let benv = bind (s) (f) (RecClosure(f, arg, t1, t2, fBody,s)) in
 		eval leBody benv
 	| Apply(eF, eArg) ->
 		let fclosure = eval eF s in 
 			(match fclosure with 
-			| Closure(arg, fbody, fDecEnv) ->
-				let aVal = eval eArg s in
+			| Closure(arg, t1, t2, fbody, fDecEnv) -> let aVal = eval eArg s in 
+			if typecheck (t1, aVal) then (
 				let aenv = bind fDecEnv arg aVal in 
-					eval fbody aenv
-			| RecClosure(f, arg, fbody, fDecEnv) ->
-				let aVal = eval eArg s in
+				let result = eval fbody aenv in
+				if typecheck(t2, result) then result else raise TypeError
+			) else raise TypeError
+			| RecClosure(f, arg, t1, t2, fbody, fDecEnv) -> let aVal = eval eArg s in
+			if typecheck(t1, aVal) then (
 				let rEnv = bind fDecEnv f fclosure in
 				let aenv = bind rEnv arg aVal in 
-						eval fbody aenv
+				let result = eval fbody aenv in
+				if typecheck(t2, result) then result else raise TypeError
+			) else raise TypeError
 			| _ -> raise ValueError)
 	
 	| Empty(t) -> new_empty(t)
@@ -387,7 +401,8 @@ let rec eval (e:exp) (s:evT env) = match e with
 	| Remove(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_remove(f1,f2) 
 	| GetMin(e1) -> let f1 = eval e1 s in set_getMin(f1) 
 	| GetMax(e1) -> let f1 = eval e1 s in set_getMax(f1)
-	| For_all(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_forall(f1,f2) (* e1 predicato, e2 insieme *)
-	| Exists(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_exists(f1,f2) (* e1 predicato, e2 insieme *)
-	| Filter(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_filter(f1,f2) (* e1 predicato, e2 insieme *)
-	| Map(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_map(f1,f2) (* e1 funzione, e2 insieme *)
+
+	| For_all(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_forall(f1, f2)
+	| Exists(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_exists(f1, f2)
+	| Filter(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_filter(f1, f2)
+	| Map(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_map(f1, f2)
