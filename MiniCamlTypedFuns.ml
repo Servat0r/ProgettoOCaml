@@ -35,7 +35,7 @@ type exp = EInt of int
 		| Or of exp*exp
 		| Not of exp
 		(* Controllo del flusso, assegnamenti, funzioni *)
-		| IfThenElse of exp * exp * exp
+		| IfThenElse of exp * exp * exp (* IfThenElse è un'espressione, per cui la seconda e la terza espressione dovranno avere lo stesso tipo *)
 		| Let of ide * exp * exp (* ide = nome della variabile; exp1 = valore della variabile; exp2 = espressione da valutare *)
 		| Letrec of ide * ide * tname * tname * exp * exp (* ide1 = nome della funzione; ide2 = nome dell'argomento; tname1 = tipo della funzione;
 		exp1 = corpo della funzione; exp2 = espressione da valutare *)
@@ -358,12 +358,14 @@ let rec eval (e:exp) (s:evT env) = match e with
 	| Or(e1, e2) -> bool_or((eval e1 s),(eval e2 s))
 	| Not(e1) -> bool_not(eval e1 s)
 
-	| IfThenElse(e1,e2,e3) -> let g = eval e1 s in (* PROBLEMA: Ma così non si sa che tipo hanno le espressioni e2 ed e3; andrebbe introdotta una getType *)
-		(match (typecheck(TBool, g), g) with
-			| (true, Bool(true)) -> eval e2 s
-			| (true, Bool(false)) -> eval e3 s
-			| (_, _) -> raise ValueError
-		)
+	(* E' necessario valutare entrambe le espressioni dei due rami per poter verificare che il tipo dell'IfThenElse sia ben definito *)
+	| IfThenElse(e1,e2,e3) -> let g = eval e1 s in if typecheck(TBool, g) then 
+	(let f2 = eval e2 s in let f3 = eval e3 s in if (getType f2 = getType f3) then (match g with
+			| Bool(true) -> f2
+			| Bool(false) -> f3
+		) else raise TypeError
+	) else raise ValueError
+	
 	| Let(i, e, ebody) -> eval ebody (bind s i (eval e s))
 	| Fun(arg, t1, t2, ebody) -> Closure(arg,t1, t2,ebody,s) (* Ricordando che t = (<tipo_parametro>, <tipo_risultato>) *)
 	| Letrec(f, arg, t1, t2, fBody, leBody) ->

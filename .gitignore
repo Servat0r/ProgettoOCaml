@@ -1,1 +1,5 @@
 ToDo.txt
+*.cmi
+*.cmx
+*.o
+*.exe
