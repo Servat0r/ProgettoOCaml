@@ -5,18 +5,13 @@
 (* Identificatori *)
 type ide = string;;
 
-(* tsub sono esattamente i tipi di dato ammissibili per un insieme: interi, stringhe e booleani *)
-type tsub = TInt | TBool | TString
-
-(* "Nomi" dei tipi di dato presenti per migliorare la leggibilità, anziché usare degli string literals come "int", "bool" etc;
-i tipi TInt ... TString sono dichiarati per sfruttare l' "aliasing" *)
-type tname =  TInt 
-	| TBool 
-	| TString
+(* "Nomi" dei tipi di dato presenti per migliorare la leggibilità, anziché usare degli string literals come "int", "bool" etc *)
+type tname = TVal of tsub (* "Wrapper" dei tipi di dato ammissibili per un insieme *)
 	| TClosure 
 	| TRecClosure 
 	| TSet of tsub (* Insieme *)
 	| TUnBound
+	and tsub = TInt | TBool | TString (* tsub sono esattamente i tipi di dato ammissibili per un insieme: interi, stringhe e booleani *)
 
 (* Abstract Expressions = espressioni nella sintassi astratta, compongono l'Albero di Sintassi Astratta *)
 type exp = EInt of int
@@ -86,27 +81,13 @@ exception RuntimeError
 
 (* Una mappa da evT a tname che a ogni valore col suo descrittore di tipo associa il nome del tipo *)
 let (getType : evT -> tname) = function x -> match x with
-	| Int(n) -> TInt
-	| Bool(b) -> TBool
-	| String(s) -> TString
+	| Int(n) -> TVal(TInt)
+	| Bool(b) -> TVal(TBool)
+	| String(s) -> TVal(TString)
 	| Closure(i,e,en) -> TClosure
 	| RecClosure(i,j,e,en) -> TRecClosure
 	| Set(t,l) -> TSet(t)
 	| UnBound -> TUnBound
-
-(* Funzione di upcasting da tsub a tname *)
-let (upcast : tsub -> tname) = function x -> match x with
-	| TInt -> TInt
-	| TBool -> TBool
-	| TString -> TString
-
-(* Funzione di downcasting da tname a tsub *)
-let (downcast : tname -> tsub) = function x -> match x with
-	| TInt -> TInt
-	| TBool -> TBool
-	| TString -> TString
-	| _ -> raise RuntimeError
-
 
 (*
 Per l'ambiente ne usiamo solo uno, per facilitare la creazione delle chiusure; di conseguenza, dovremo ricordarci dei nomi dei parametri
@@ -120,30 +101,32 @@ let emptyenv = function x -> UnBound
 let global_envt = emptyenv
 
 (* Type-checking; non dovrà essere accessibile *)
-let typecheck ((x, y) : (tname*evT)) = match x with
-        | TInt -> 
-            (match y with 
-                | Int(u) -> true
-                | _ -> false
-			)
-        | TBool -> 
-            (match y with 
-                | Bool(u) -> true
-                | _ -> false
-			)
-		| TString ->
-			(match y with
-				| String(u) -> true
-				| _ -> false
-			)
+let typecheck (x, y) = match x with
+		|TVal(t) -> (match t with
+        	| TInt -> 
+            	(match y with 
+                    | Int(u) -> true
+                    | _ -> false
+				)
+        	| TBool -> 
+            	(match y with 
+                    | Bool(u) -> true
+                    | _ -> false
+				)
+			| TString ->
+				(match y with
+					| String(u) -> true
+					| _ -> false
+				)
+		)
 		|TSet(tn) ->
-			(match y with
-				| Set(t, l) -> (if (tn = t) then 
-					let rec sameType (t : tname) (l : evT list) = match l with
-						| [] -> true
-						| p::q -> let t' = getType p in (if (t = t') then sameType t q else false)
-					in sameType (upcast t) l else false)
-				| _ -> false
+				(match y with
+					(* Sicuro che vada bene così però? *)
+					| Set(t, l) -> (if (tn = t) then let rec sameType (t : tname) (l : evT list) = match l with
+														| [] -> true
+														| p::q -> let t' = getType p in (if (t = t') then sameType t q else false)
+						in sameType (TVal(t)) l else false)
+					| _ -> false
 				)
         |TClosure -> 
 				(match y with
@@ -226,55 +209,55 @@ let rec list_min (t : tsub) l = match l with
 (* PRIMITIVE del linguaggio *)
 
 (* Controlla se un numero è zero *)
-let is_zero(x) = match (typecheck(TInt,x),x) with
+let is_zero(x) = match (typecheck(TVal(TInt),x),x) with
 	| (true, Int(v)) -> Bool(v = 0)
 	| (_, _) -> raise RuntimeError
 
 (* Uguaglianza fra interi; non dovrà essere accessibile *)
 let int_eq(x,y) =   
-match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
+match (typecheck(TVal(TInt),x), typecheck(TVal(TInt),y), x, y) with
   | (true, true, Int(v), Int(w)) -> Bool(v = w)
   | (_,_,_,_) -> raise RuntimeError
 
 (* Somma fra interi; non dovrà essere accessibile *)	   
  let int_plus(x, y) = 
- match(typecheck(TInt,x), typecheck(TInt,y), x, y) with
+ match(typecheck(TVal(TInt),x), typecheck(TVal(TInt),y), x, y) with
   | (true, true, Int(v), Int(w)) -> Int(v + w)
   | (_,_,_,_) -> raise RuntimeError
 
 (* Differenza fra interi; non dovrà essere accessibile *)
 let int_sub(x, y) = 
- match(typecheck(TInt,x), typecheck(TInt,y), x, y) with
+ match(typecheck(TVal(TInt),x), typecheck(TVal(TInt),y), x, y) with
   | (true, true, Int(v), Int(w)) -> Int(v - w)
   | (_,_,_,_) -> raise RuntimeError
 
 (* Prodotto fra interi; non dovrà essere accessibile *)
-let int_times(x, y) = match(typecheck(TInt,x), typecheck(TInt,y), x, y) with
+let int_times(x, y) = match(typecheck(TVal(TInt),x), typecheck(TVal(TInt),y), x, y) with
  	| (true, true, Int(v), Int(w)) -> Int(v * w)
   	| (_,_,_,_) -> raise RuntimeError
 
 (* Potenza fra interi; non dovrà essere accessibile *)
-let int_pow(x,y) = match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
+let int_pow(x,y) = match (typecheck(TVal(TInt),x), typecheck(TVal(TInt),y), x, y) with
 	| (true, true, Int(v), Int(w)) -> Int(pow v w)
 	|(_,_,_,_) -> raise RuntimeError
 
-let less_than(x, y) = match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
+let less_than(x, y) = match (typecheck(TVal(TInt),x), typecheck(TVal(TInt),y), x, y) with
 	| (true, true, Int(v), Int(w)) -> Bool(v < w)
 	| (_,_,_,_) -> raise RuntimeError
 
-let greater_than(x, y) = match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
+let greater_than(x, y) = match (typecheck(TVal(TInt),x), typecheck(TVal(TInt),y), x, y) with
 	| (true, true, Int(v), Int(w)) -> Bool(v > w)
 	| (_,_,_,_) -> raise RuntimeError
 
-let bool_and(x,y) = match (typecheck(TBool,x), typecheck(TBool,y), x, y) with
+let bool_and(x,y) = match (typecheck(TVal(TBool),x), typecheck(TVal(TBool),y), x, y) with
 	| (true, true, Bool(v), Bool(w)) -> Bool(v && w)
 	| (_,_,_,_) -> raise RuntimeError
 
-let bool_or(x,y) = match (typecheck(TBool,x), typecheck(TBool,y), x, y) with
+let bool_or(x,y) = match (typecheck(TVal(TBool),x), typecheck(TVal(TBool),y), x, y) with
 	| (true, true, Bool(v), Bool(w)) -> Bool(v || w)
 	| (_,_,_,_) -> raise RuntimeError
 
-let bool_not(x) = match (typecheck(TBool,x), x) with
+let bool_not(x) = match (typecheck(TVal(TBool),x), x) with
 	| (true, Bool(v)) -> Bool(not(v))
 	| (_,_) -> raise RuntimeError
 
@@ -282,11 +265,10 @@ let bool_not(x) = match (typecheck(TBool,x), x) with
 let new_empty (t : tsub) = Set(t,[])
 
 (* Crea un nuovo insieme con un solo elemento *)
-let new_singleton ((t, e) : (tsub*evT)) = if typecheck(upcast t,e) then Set(t, [e]) else raise RuntimeError
+let new_singleton (t,e) = if typecheck(TVal(t),e) then Set(t, [e]) else raise RuntimeError
 
 (* Crea un nuovo insieme partendo da una lista di elementi. *)
-let new_of ((t , l) : (tsub*(evT list))) = if checkNotEquals l then (let s = Set(t, l) in 
-	if typecheck(TSet(t), s) then s else raise RuntimeError) else raise RuntimeError
+let new_of (t,l) = if checkNotEquals l then (let s = Set(t, l) in if typecheck(TSet(t), s) then s else raise RuntimeError) else raise RuntimeError
 
 (* Verifica se un insieme è vuoto *)
 let is_empty (x : evT) = match x with
@@ -295,7 +277,7 @@ let is_empty (x : evT) = match x with
 
 (* Verifica se un insieme contiene un elemento dato *)
 let set_contains(s,x) = match s with
-	| Set(t, l) -> if typecheck(upcast t, x) then Bool(list_contains l x) else raise RuntimeError
+	| Set(t, l) -> if typecheck(TVal(t), x) then Bool(list_contains l x) else raise RuntimeError
 	| _ -> raise RuntimeError
 
 (* Verifica se un insieme è sottoinsieme di un altro insieme *)
@@ -307,12 +289,12 @@ let set_is_subset (s1, s2) = match s1 with
 	| _ -> raise RuntimeError
 
 let set_insert(e1, e2) = match e1 with
-	| Set(t,l) -> if typecheck(upcast t,e2) then ( if list_contains l e2 then Set(t,l) else Set(t, e2::l)) 
+	| Set(t,l) -> if typecheck(TVal(t),e2) then ( if list_contains l e2 then Set(t,l) else Set(t, e2::l)) 
 		else raise RuntimeError
 	| _ -> raise RuntimeError
 
 let set_remove(e1, e2) = match e1 with
-	| Set(t,l) -> if typecheck(upcast t,e2) then (if list_contains l e2 then Set(t, list_remove l e2) else raise RuntimeError ) 
+	| Set(t,l) -> if typecheck(TVal(t),e2) then (if list_contains l e2 then Set(t, list_remove l e2) else raise RuntimeError ) 
 		else raise RuntimeError
 	| _ -> raise RuntimeError
 
@@ -353,7 +335,7 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 	| Or(e1, e2) -> bool_or((eval e1 s),(eval e2 s))
 	| Not(e1) -> bool_not(eval e1 s)
 
-	| IfThenElse(e1,e2,e3) -> let g = eval e1 s in (match (typecheck(TBool,g),g) with
+	| IfThenElse(e1,e2,e3) -> let g = eval e1 s in (match (typecheck(TVal(TBool),g),g) with
 		|(true, Bool(true)) -> eval e2 s
 		|(true, Bool(false)) -> eval e3 s
 		|(_,_) -> raise RuntimeError
@@ -507,10 +489,12 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 			| _ -> raise RuntimeError
 		)
 		in let fclosure = eval e1 s in let fset = eval e2 s in (match fset with
-			| Set(t,l) -> (if l = [] then raise RuntimeError (* Non possiamo applicare la fclosure a un insieme vuoto *)
+			| Set(t,l) -> if l = [] then raise RuntimeError (* Non possiamo applicare la fclosure a un insieme vuoto *)
 			else let m = map_list(fclosure,l) in (* Sappiamo che perlomeno non ci sono elementi duplicati *)
-			let t' = getType (List.hd m) in 
-			(try let ts = downcast t' in let r = Set(ts, m) in if typecheck(TSet(ts), r) then r else raise RuntimeError
-			with RuntimeError -> raise RuntimeError))
+			let t' = getType (List.hd m) in (match t' with (* Assumiamo che il tipo del set risultante debba essere il tipo del primo elemento
+			della lista mappata *)
+				|TVal(ts) -> let r = Set(ts, m) in if typecheck(TSet(ts), r) then r else raise RuntimeError
+				| _ -> raise RuntimeError
+			)
 			| _ -> raise RuntimeError
 		)

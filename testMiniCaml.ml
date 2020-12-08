@@ -8,16 +8,16 @@ let rec println_evT (e : evT) =
     |Int n -> print_int n
     |Bool b -> if b then print_string "true" else print_string "false"
     |String s -> print_string s
-    | _ -> failwith("Unaccepted value")
+    | _ -> failwith("Unacceptable value")
     (* Stampa in-line di una lista *)
-    in let rec println_list l = match l with
-        | [] -> Printf.printf("\n")
-        | p::q -> print_evT p; print_string " "; println_list q
+    in let rec print_list l = match l with
+        | [] -> ()
+        | p::q -> print_evT p; print_string " "; print_list q
     in match e with
         | Int n -> print_evT e; Printf.printf("\n")
         | Bool b -> print_evT e; Printf.printf("\n")
 		| String s -> print_evT e; Printf.printf("\n")
-        | Set(t,l) -> if l = [] then print_string "Insieme vuoto\n" else (print_string "Insieme di: "; println_list l)
+        | Set(t,l) -> if l = [] then print_string "Set: {}\n" else (print_string "Set: { "; print_list l; print_string "}\n")
         | _ -> failwith("Unprintable value")
 ;;
 
@@ -44,7 +44,7 @@ let b = Let("y", EInt 4, Den("y"))
 (* Test per booleani *)
 let c = Let("z", True, Den("z"))
 
-(* Test per funzioni primitive: pow , LessThan, GreaterThan*)
+(* Test per funzioni primitive aggiunte: pow , lessThan, greaterThan*)
 let potenza=Pow(EInt 2,EInt 4)
 
 let meno_di1=LessThan(EInt 2,EInt 4)
@@ -101,10 +101,12 @@ let lista_maggiori=Filter(Fun("x",GreaterThan(Den "x", EInt 3)),insieme)
 let prova_map=Let("f", Fun("x", IfThenElse(Eq(Den "x", EInt 0), EString "p", EString "q")), Let("s", Of(TInt, [EInt 0; EInt 54; EInt 8]), Map(Den "f", Den "s")))
 
 let prova_unione = Union(Of(TInt, [EInt 6; EInt 8; EInt 3; EInt 45; EInt 12]),Of(TInt, [EInt 5; EInt 8; EInt 3; EInt 89]))
+
 let prova_intersezione = Intersection(Of(TInt, [EInt 6; EInt 8; EInt 3; EInt 45; EInt 12]),Of(TInt, [EInt 5; EInt 8; EInt 3; EInt 89]))
+
 let prova_differenza = Difference(Of(TInt, [EInt 6; EInt 8; EInt 3; EInt 45; EInt 12]),Of(TInt, [EInt 5; EInt 8; EInt 3; EInt 89]))
 
-
+(* Errori *)
 let errore_set_1_elem=Singleton(TInt,EString "aiutooo") 
 
 let errore_set_tipi_diversi=Of(TInt,[EString "erorre"; EInt 8]) 
@@ -113,7 +115,7 @@ let errore_controllo_contenimento=Contains(insieme,EString "nope")
 
 let errore_contenimento_insiemi=IsSubset(insieme_1_elem,Singleton(TString,EString "nope")) 
 
-let errore_inserimento=Insert(insieme,EString "sbagliato")
+let errore_inserimento=Insert(insieme,EString "sbalgiato")
 
 let errore_rimozione=Remove(insieme,EInt 150)
 
@@ -150,6 +152,14 @@ peval insieme_vuoto env0;;
 peval insieme_1_elem env0;;
 peval insieme env0;;
 
+
+(*Stampa per unione, intersezione e differenza*)
+Printf.printf "\n\n****Unione, Intersezione e Differenza fra insiemi****\n";;
+peval prova_unione env0;;
+peval prova_intersezione env0;;
+peval prova_differenza env0;;
+
+
 (*Stampa per operatori unari su insiemi*)
 Printf.printf "\n\n****Operatori unari insiemi****\n";;
 peval verifica_vuoto1 env0;;
@@ -178,10 +188,6 @@ peval lista_minori env0;;
 peval lista_maggiori env0;;
 peval prova_map env0;;
 
-Printf.printf "we";;
-peval prova_differenza env0;;
-peval prova_intersezione env0;;
-peval prova_unione env0;;
 
 (*Errori*)
 Printf.printf "\n\n****Errori****\n";;
