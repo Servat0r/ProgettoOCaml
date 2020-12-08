@@ -50,6 +50,9 @@ type exp = EInt of int
 		| GetMin of exp (* Minimo elemento di un insieme; ma vale solo per gli interi? *)
 		| GetMax of exp (* Massimo elemento di un insieme; ma vale solo per gli interi? *)
 		(* Operatori binari su insiemi *)
+		| Union of exp*exp (* Unione di insiemi *)
+		| Intersection of exp*exp (* Intersezione di insiemi *)
+		| Difference of exp*exp (* Differenza di insiemi *)
 		| Insert of exp*exp
 		| Remove of exp*exp
 		| Contains of exp*exp
@@ -264,8 +267,7 @@ let new_empty (t : tsub) = Set(t,[])
 (* Crea un nuovo insieme con un solo elemento *)
 let new_singleton (t,e) = if typecheck(TVal(t),e) then Set(t, [e]) else raise RuntimeError
 
-(* Crea un nuovo insieme partendo da una lista di elementi.
-Soluzione adottata: provo a creare s e se è ok per i tipi allora lo passo, altrimenti do errore; sicuro che sia la migliore? *)
+(* Crea un nuovo insieme partendo da una lista di elementi. *)
 let new_of (t,l) = if checkNotEquals l then (let s = Set(t, l) in if typecheck(TSet(t), s) then s else raise RuntimeError) else raise RuntimeError
 
 (* Verifica se un insieme è vuoto *)
@@ -273,34 +275,36 @@ let is_empty (x : evT) = match x with
 	| Set(t,l) -> if (l = []) then Bool(true) else Bool(false)
 	| _ -> raise RuntimeError
 
-(* Non fa uso del typechecker: può essere un problema? *)
-let set_contains(s,x) = let t = getType x in match s with
-	| Set(t', l) -> (match t with
-		|TVal(t'') -> if (t'' = t') then Bool(list_contains l x) else raise RuntimeError
-		| _ -> raise RuntimeError
+(* Verifica se un insieme contiene un elemento dato *)
+let set_contains(s,x) = match s with
+	| Set(t, l) -> if typecheck(TVal(t), x) then Bool(list_contains l x) else raise RuntimeError
+	| _ -> raise RuntimeError
+
+(* Verifica se un insieme è sottoinsieme di un altro insieme *)
+let set_is_subset (s1, s2) = match s1 with
+	| Set(t,l1) -> (match(typecheck(TSet(t),s2),s2) with
+		| (true, Set(t,l2)) -> Bool(is_contained l1 l2)
+		| (_,_) -> raise RuntimeError
 	)
 	| _ -> raise RuntimeError
 
-let rec set_is_subset (e1, e2) = match (e1, e2) with
-	| (Set(t1, l1), Set(t2,l2)) -> if (t1 = t2) then Bool(is_contained l1 l2) else raise RuntimeError
+let set_insert(e1, e2) = match e1 with
+	| Set(t,l) -> if typecheck(TVal(t),e2) then ( if list_contains l e2 then Set(t,l) else Set(t, e2::l)) 
+		else raise RuntimeError
 	| _ -> raise RuntimeError
 
-let rec set_insert(e1, e2) = match e1 with
-	| Set(t,l) -> if typecheck(TVal(t),e2) then ( if list_contains l e2 then raise RuntimeError 
-	else Set(t, e2::l)) else raise RuntimeError
-	| _ -> raise RuntimeError
-
-let rec set_remove(e1, e2) = match e1 with
-	| Set(t,l) -> if typecheck(TVal(t),e2) then (if list_contains l e2 then Set(t, list_remove l e2) else raise RuntimeError ) else raise RuntimeError
+let set_remove(e1, e2) = match e1 with
+	| Set(t,l) -> if typecheck(TVal(t),e2) then (if list_contains l e2 then Set(t, list_remove l e2) else raise RuntimeError ) 
+		else raise RuntimeError
 	| _ -> raise RuntimeError
 
 (* Massimo di un insieme di interi / stringhe / booleani *)
-let rec set_getMax(e1) = match e1 with
+let set_getMax(e1) = match e1 with
 	| Set(t, l) -> list_max t l
 	| _ -> raise RuntimeError
 
 (* Minimo di un insieme di interi / stringhe / booleani *)
-let rec set_getMin(e1) = match e1 with
+let set_getMin(e1) = match e1 with
 	| Set(t,l) -> list_min t l
 	| _ -> raise RuntimeError
 
@@ -358,8 +362,38 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 	| Singleton(t, e1) -> let f = eval e1 s in new_singleton(t,f)
 	| Of(t, l) -> let rec evalList k s = match k with
 		|[] -> []
-		|p::q -> (eval p s)::(evalList q s)
+		|p::q -> let r = eval p s in let ls = evalList q s in if list_contains ls r then ls else r::ls
 	in (let m = evalList l s in new_of(t,m))
+
+	| Union(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in (match f1 with
+		| Set(t, l) -> (match (typecheck(TSet(t),f2),f2) with
+			|(true, Set(t,m)) -> let rec list_union(l,m) = match l with
+				|[] -> m
+				|p::q -> if list_contains m p then list_union(q,m) else list_union(q,p::m)
+		        in Set(t, list_union(l,m))
+			|(_,_) -> raise RuntimeError)
+		| _ -> raise RuntimeError
+	)
+
+	| Intersection(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in (match f1 with
+		| Set(t,l) -> (match (typecheck(TSet(t),f2),f2) with
+			|(true, Set(t,m)) -> let rec list_intersection(l,m) = match l with
+				|[] -> []
+				|p::q -> if list_contains m p then p::list_intersection(q,m) else list_intersection(q,m)
+				in Set(t, list_intersection(l,m))
+			| (_,_) -> raise RuntimeError)
+		| _ -> raise RuntimeError
+	)
+
+	| Difference(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in (match f1 with
+		| Set(t,l) -> (match (typecheck(TSet(t),f2),f2) with
+			| (true, Set(t,m)) -> let rec list_difference(l,m) = match l with
+				|[] -> []
+				|p::q -> if list_contains m p then list_difference(q,m) else p::list_difference(q,m)
+				in Set(t, list_difference(l,m))
+			| (_,_) -> raise RuntimeError)
+		| _ -> raise RuntimeError
+	)
 	
 	| IsEmpty(e1) -> let f = eval e1 s in is_empty(f) 
 	| Contains(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in set_contains(f1, f2)
