@@ -2,7 +2,7 @@
 open MiniCaml;;
 
 (* Una println per visualizzare le espressioni ottenute come risultato *)
-let rec println_evT (e : evT) =
+let rec println (e : evT) =
     (* Stampa senza aggiungere un ritorno a capo*)
     let rec print_evT (e : evT) = match e with
     |Int n -> print_int n
@@ -24,7 +24,7 @@ let rec println_evT (e : evT) =
 let env0=global_envt;;
 
 (* Permette di stampare (sia da shell sia dopo compilazione) il risultato delle valutazione di un'espressione *)
-let peval (e: exp) (s: evT env) = println_evT (eval e s);;
+let peval (e: exp) (s: evT env) = println (eval e s);;
 
 (* Stampa un messaggio di errore (da usare nei try-with in fondo) *)
 let print_error () = print_string "RuntimeError\n"
