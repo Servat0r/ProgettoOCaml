@@ -28,7 +28,6 @@ type exp = EInt of int
 		| Sum of exp * exp
 		| Sub of exp * exp
 		| Times of exp * exp
-		| Pow of exp * exp 
 		(* Operatori da interi a booleani *)
 		| IsZero of exp
 		| Eq of exp * exp
@@ -82,7 +81,7 @@ type evT = Int of int
 	| Set of tsub*(evT list)
 	| UnBound
 
-exception RuntimeError
+exception RuntimeError of string
 
 (* Una mappa da evT a tname che a ogni valore col suo descrittore di tipo associa il nome del tipo *)
 let (getType : evT -> tname) = function x -> match x with
@@ -105,7 +104,7 @@ let (downcast : tname -> tsub) = function x -> match x with
 	| TInt -> TInt
 	| TBool -> TBool
 	| TString -> TString
-	| _ -> raise RuntimeError
+	| _ -> raise ( RuntimeError "Cannot downcast")
 
 
 (*
@@ -116,8 +115,6 @@ attuali di una funzione per ripristinare eventuali valori globali nel momento in
 (* Ambiente vuoto; non dovrà essere accessibile *)
 let emptyenv = function x -> UnBound
 
-(* Inizializzazione dell'ambiente globale come vuoto*)
-let global_envt = emptyenv
 
 (* Type-checking; non dovrà essere accessibile *)
 let typecheck ((x, y) : (tname*evT)) = match x with
@@ -170,8 +167,6 @@ let bind (s: evT env) (x: string) (v: evT) = function (i: string) -> if (i = x) 
 
 (* UTILITIES per le primitive del linguaggio (NON sono primitive!) *)
 
-(* Potenza di un intero; non dovrà essere accessibile *)
-let rec pow x n = if n = 0 then 1 else x * (pow x (n-1))
 
 (* Controlla se una lista contiene o meno l'elemento dato *)
 let rec list_contains l x = match l with
@@ -191,7 +186,7 @@ let rec is_contained l1 l2 = match l1 with
 
 (* Rimuove l'elemento x dalla lista l se presente, dà errore altrimenti *)
 let rec list_remove l x = match l with
-	| [] -> raise RuntimeError
+	| [] -> raise ( RuntimeError "")
 	| p::q -> if (p = x) then q else p::(list_remove q x)
 
 (* Calcola il massimo fra due elementi di tipo Int / Bool / String *)
@@ -199,25 +194,25 @@ let max (a,b) = match (a,b) with
 	| (Int(p), Int(q)) -> if (compare p q) = 1 then a else b
 	| (Bool(p), Bool(q)) -> if (compare p q) = 1 then a else b
 	| (String(p), String(q)) -> if (compare p q) = 1 then a else b
-	| _ -> failwith("Uncomparable values")
+	| _ -> raise (RuntimeError "Uncomparable values")
 
 (* Calcola il minimo fra due elementi di tipo Int / Bool / String *)
 let min (a,b) = match (a,b) with
 	| (Int(p), Int(q)) -> if (compare p q) = 1 then b else a
 	| (Bool(p), Bool(q)) -> if (compare p q) = 1 then b else a
 	| (String(p), String(q)) -> if (compare p q) = 1 then b else a
-	| _ -> failwith("Uncomparable values")
+	| _ -> raise (RuntimeError "Uncomparable values")
 
 (* Calcola il massimo di una lista di elementi dello stesso tipo (TInt, TBool o TString) *)
 let rec list_max (t : tsub) l = match l with
-	| [] -> raise RuntimeError
+	| [] -> raise ( RuntimeError "")
 	| p::[] -> p
 	| p::q::m -> max(p, list_max t (q::m))
 
 
 (* Calcola il massimo di una lista di elementi dello stesso tipo (TInt, TBool o TString) *)
 let rec list_min (t : tsub) l = match l with
-	| [] -> raise RuntimeError
+	| [] -> raise ( RuntimeError "")
 	| p::[] -> p
 	| p::q::m -> min(p, list_min t (q::m))
 
@@ -228,103 +223,99 @@ let rec list_min (t : tsub) l = match l with
 (* Controlla se un numero è zero *)
 let is_zero(x) = match (typecheck(TInt,x),x) with
 	| (true, Int(v)) -> Bool(v = 0)
-	| (_, _) -> raise RuntimeError
+	| (_, _) -> raise ( RuntimeError "Wrong type")
 
 (* Uguaglianza fra interi; non dovrà essere accessibile *)
 let int_eq(x,y) =   
 match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
   | (true, true, Int(v), Int(w)) -> Bool(v = w)
-  | (_,_,_,_) -> raise RuntimeError
+  | (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
 (* Somma fra interi; non dovrà essere accessibile *)	   
  let int_plus(x, y) = 
  match(typecheck(TInt,x), typecheck(TInt,y), x, y) with
   | (true, true, Int(v), Int(w)) -> Int(v + w)
-  | (_,_,_,_) -> raise RuntimeError
+  | (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
 (* Differenza fra interi; non dovrà essere accessibile *)
 let int_sub(x, y) = 
  match(typecheck(TInt,x), typecheck(TInt,y), x, y) with
   | (true, true, Int(v), Int(w)) -> Int(v - w)
-  | (_,_,_,_) -> raise RuntimeError
+  | (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
 (* Prodotto fra interi; non dovrà essere accessibile *)
 let int_times(x, y) = match(typecheck(TInt,x), typecheck(TInt,y), x, y) with
  	| (true, true, Int(v), Int(w)) -> Int(v * w)
-  	| (_,_,_,_) -> raise RuntimeError
+  	| (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
-(* Potenza fra interi; non dovrà essere accessibile *)
-let int_pow(x,y) = match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
-	| (true, true, Int(v), Int(w)) -> Int(pow v w)
-	|(_,_,_,_) -> raise RuntimeError
 
 let less_than(x, y) = match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
 	| (true, true, Int(v), Int(w)) -> Bool(v < w)
-	| (_,_,_,_) -> raise RuntimeError
+	| (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
 let greater_than(x, y) = match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
 	| (true, true, Int(v), Int(w)) -> Bool(v > w)
-	| (_,_,_,_) -> raise RuntimeError
+	| (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
 let bool_and(x,y) = match (typecheck(TBool,x), typecheck(TBool,y), x, y) with
 	| (true, true, Bool(v), Bool(w)) -> Bool(v && w)
-	| (_,_,_,_) -> raise RuntimeError
+	| (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
 let bool_or(x,y) = match (typecheck(TBool,x), typecheck(TBool,y), x, y) with
 	| (true, true, Bool(v), Bool(w)) -> Bool(v || w)
-	| (_,_,_,_) -> raise RuntimeError
+	| (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
 let bool_not(x) = match (typecheck(TBool,x), x) with
 	| (true, Bool(v)) -> Bool(not(v))
-	| (_,_) -> raise RuntimeError
+	| (_,_) -> raise ( RuntimeError "Wrong type")
 
 (* Crea un nuovo insieme vuoto *)
 let new_empty (t : tsub) = Set(t,[])
 
 (* Crea un nuovo insieme con un solo elemento *)
-let new_singleton ((t, e) : (tsub*evT)) = if typecheck(upcast t,e) then Set(t, [e]) else raise RuntimeError
+let new_singleton ((t, e) : (tsub*evT)) = if typecheck(upcast t,e) then Set(t, [e]) else raise ( RuntimeError "Wrong type")
 
 (* Crea un nuovo insieme partendo da una lista di elementi. *)
 let new_of ((t , l) : (tsub*(evT list))) = if checkNotEquals l then (let s = Set(t, l) in 
-	if typecheck(TSet(t), s) then s else raise RuntimeError) else raise RuntimeError
+	if typecheck(TSet(t), s) then s else raise ( RuntimeError "Wrong type")) else raise ( RuntimeError "Duplicated values!")
 
 (* Verifica se un insieme è vuoto *)
 let is_empty (x : evT) = match x with
 	| Set(t,l) -> if (l = []) then Bool(true) else Bool(false)
-	| _ -> raise RuntimeError
+	| _ -> raise ( RuntimeError "Wrong type")
 
 (* Verifica se un insieme contiene un elemento dato *)
 let set_contains(s,x) = match s with
-	| Set(t, l) -> if typecheck(upcast t, x) then Bool(list_contains l x) else raise RuntimeError
-	| _ -> raise RuntimeError
+	| Set(t, l) -> if typecheck(upcast t, x) then Bool(list_contains l x) else raise ( RuntimeError "Wrong type")
+	| _ -> raise ( RuntimeError "Wrong type")
 
 (* Verifica se un insieme è sottoinsieme di un altro insieme *)
 let set_is_subset (s1, s2) = match s1 with
 	| Set(t,l1) -> (match(typecheck(TSet(t),s2),s2) with
 		| (true, Set(t,l2)) -> Bool(is_contained l1 l2)
-		| (_,_) -> raise RuntimeError
+		| (_,_) -> raise ( RuntimeError "Wrong type")
 	)
-	| _ -> raise RuntimeError
+	| _ -> raise ( RuntimeError "Wrong type")
 
 let set_insert(e1, e2) = match e1 with
 	| Set(t,l) -> if typecheck(upcast t,e2) then ( if list_contains l e2 then Set(t,l) else Set(t, e2::l)) 
-		else raise RuntimeError
-	| _ -> raise RuntimeError
+		else raise ( RuntimeError "Wrong type")
+	| _ -> raise ( RuntimeError "Wrong type")
 
 let set_remove(e1, e2) = match e1 with
-	| Set(t,l) -> if typecheck(upcast t,e2) then (if list_contains l e2 then Set(t, list_remove l e2) else raise RuntimeError ) 
-		else raise RuntimeError
-	| _ -> raise RuntimeError
+	| Set(t,l) -> if typecheck(upcast t,e2) then (if list_contains l e2 then Set(t, list_remove l e2) else raise ( RuntimeError "Not existing element!") ) 
+		else raise ( RuntimeError "Wrong type")
+	| _ -> raise ( RuntimeError "Wrong type")
 
 (* Massimo di un insieme di interi / stringhe / booleani *)
 let set_getMax(e1) = match e1 with
 	| Set(t, l) -> list_max t l
-	| _ -> raise RuntimeError
+	| _ -> raise ( RuntimeError "Wrong type")
 
 (* Minimo di un insieme di interi / stringhe / booleani *)
 let set_getMin(e1) = match e1 with
 	| Set(t,l) -> list_min t l
-	| _ -> raise RuntimeError
+	| _ -> raise ( RuntimeError "Wrong type")
 
 
 
@@ -342,7 +333,6 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 	| Times(e1,e2) -> int_times((eval e1 s), (eval e2 s))
 	| Sum(e1, e2) -> int_plus((eval e1 s), (eval e2 s))
 	| Sub(e1, e2) -> int_sub((eval e1 s), (eval e2 s))
-	| Pow(e1,e2) -> int_pow((eval e1 s),(eval e2 s))
 	
 	| IsZero(e1) -> is_zero (eval e1 s)
 	| Eq(e1, e2) -> int_eq((eval e1 s), (eval e2 s))
@@ -356,7 +346,7 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 	| IfThenElse(e1,e2,e3) -> let g = eval e1 s in (match (typecheck(TBool,g),g) with
 		|(true, Bool(true)) -> eval e2 s
 		|(true, Bool(false)) -> eval e3 s
-		|(_,_) -> raise RuntimeError
+		|(_,_) -> raise ( RuntimeError "Wrong type")
 	)
 	| Let(i, e, ebody) -> eval ebody (bind s i (eval e s))
 	| Fun(arg, ebody) -> Closure(arg,ebody,s)
@@ -374,7 +364,7 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 				let rEnv = bind fDecEnv f fclosure in
 				let aenv = bind rEnv arg aVal in 
 				eval fbody aenv
-			| _ -> raise RuntimeError
+			| _ -> raise ( RuntimeError "Wrong type")
 			)
 	| Empty(t) -> new_empty(t)
 	| Singleton(t, e1) -> let f = eval e1 s in new_singleton(t,f)
@@ -389,8 +379,8 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 				|[] -> m
 				|p::q -> if list_contains m p then list_union(q,m) else list_union(q,p::m)
 		        in Set(t, list_union(l,m))
-			|(_,_) -> raise RuntimeError)
-		| _ -> raise RuntimeError
+			|(_,_) -> raise ( RuntimeError "Wrong type"))
+		| _ -> raise ( RuntimeError "Wrong type")
 	)
 
 	| Intersection(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in (match f1 with
@@ -399,8 +389,8 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 				|[] -> []
 				|p::q -> if list_contains m p then p::list_intersection(q,m) else list_intersection(q,m)
 				in Set(t, list_intersection(l,m))
-			| (_,_) -> raise RuntimeError)
-		| _ -> raise RuntimeError
+			| (_,_) -> raise ( RuntimeError "Wrong type"))
+		| _ -> raise ( RuntimeError "Wrong type")
 	)
 
 	| Difference(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in (match f1 with
@@ -409,8 +399,8 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 				|[] -> []
 				|p::q -> if list_contains m p then list_difference(q,m) else p::list_difference(q,m)
 				in Set(t, list_difference(l,m))
-			| (_,_) -> raise RuntimeError)
-		| _ -> raise RuntimeError
+			| (_,_) -> raise ( RuntimeError "Wrong type"))
+		| _ -> raise ( RuntimeError "Wrong type")
 	)
 	
 	| IsEmpty(e1) -> let f = eval e1 s in is_empty(f) 
@@ -429,19 +419,19 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 				let res = eval fbody fExEnv in
 				if (res = Bool(true)) then forall_list(f,q)
 				else if (res = Bool(false)) then Bool(false)
-				else raise RuntimeError
+				else raise ( RuntimeError "Wrong type")
 			|RecClosure(g, arg, fbody, fDecEnv) ->
 				let fpExEnv = bind fDecEnv arg p in
 				let fExEnv = bind fpExEnv g f in
 				let res = eval fbody fExEnv in
 				if res = Bool(true) then forall_list(f,q)
 				else if res = Bool(false) then Bool(false)
-				else raise RuntimeError
-			| _ -> raise RuntimeError
+				else raise ( RuntimeError "Wrong type")
+			| _ -> raise ( RuntimeError "Wrong type")
 			)
 		in let fclosure = eval e1 s in let fset = eval e2 s in (match fset with
 			| Set(t,l) -> forall_list(fclosure,l)
-			| _ -> raise RuntimeError
+			| _ -> raise ( RuntimeError "Wrong type")
 		)
 
 	| Exists(e1, e2) -> let rec exists_list(f,l) = match l with
@@ -452,19 +442,19 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 				let res = eval fbody fExEnv in
 				if res = Bool(true) then Bool(true)
 				else if res = Bool(false) then exists_list(f,q)
-				else raise RuntimeError
+				else raise ( RuntimeError "Wrong type")
 			|RecClosure(g, arg, fbody, fDecEnv) ->
 				let fpExEnv = bind fDecEnv arg p in
 				let fExEnv = bind fpExEnv g f in
 				let res = eval fbody fExEnv in
 				if res = Bool(true) then Bool(true)
 				else if res = Bool(false) then exists_list(f,q)
-				else raise RuntimeError
-			| _ -> raise RuntimeError
+				else raise ( RuntimeError "Wrong type")
+			| _ -> raise ( RuntimeError "")
 			)
 		in let fclosure = eval e1 s in let fset = eval e2 s in (match fset with
 			| Set(t,l) -> exists_list(fclosure,l)
-			| _ -> raise RuntimeError
+			| _ -> raise ( RuntimeError "Wrong type")
 		)
 
 	| Filter(e1, e2) -> let rec filter_list(f,l) = match l with
@@ -475,19 +465,19 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 				let res = eval fbody fExEnv in
 				(if (res = Bool(true)) then p::(filter_list(f,q))
 				else if res = Bool(false) then filter_list(f,q)
-				else raise RuntimeError)
+				else raise ( RuntimeError "Wrong type"))
 			|RecClosure(g, arg, fbody, fDecEnv) ->
 				let fpExEnv = bind fDecEnv arg p in
 				let fExEnv = bind fpExEnv g f in
 				let res = eval fbody fExEnv in
 				if res = Bool(true) then p::(filter_list(f,q))
 				else if res = Bool(false) then filter_list(f,q)
-				else raise RuntimeError
-			| _ -> raise RuntimeError
+				else raise ( RuntimeError "Wrong type")
+			| _ -> raise ( RuntimeError "Wrong type")
 			)
 		in let fclosure = eval e1 s in let fset = eval e2 s in (match fset with
 			| Set(t,l) -> Set(t,filter_list(fclosure,l))
-			| _ -> raise RuntimeError
+			| _ -> raise ( RuntimeError "Wrong type")
 		)
 	
 	| Map(e1, e2) -> let rec map_list(f,l) = match l with
@@ -504,13 +494,13 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 				let fExEnv = bind fpExEnv g f in
 				let res = eval fbody fExEnv in
 				if list_contains tail res then tail else res::tail
-			| _ -> raise RuntimeError
+			| _ -> raise ( RuntimeError "Wrong type")
 		)
 		in let fclosure = eval e1 s in let fset = eval e2 s in (match fset with
-			| Set(t,l) -> (if l = [] then raise RuntimeError (* Non possiamo applicare la fclosure a un insieme vuoto *)
+			| Set(t,l) -> (if l = [] then raise ( RuntimeError "Cannot apply on an empty set!") (* Non possiamo applicare la fclosure a un insieme vuoto *)
 			else let m = map_list(fclosure,l) in (* Sappiamo che perlomeno non ci sono elementi duplicati *)
 			let t' = getType (List.hd m) in 
-			(try let ts = downcast t' in let r = Set(ts, m) in if typecheck(TSet(ts), r) then r else raise RuntimeError
-			with RuntimeError -> raise RuntimeError))
-			| _ -> raise RuntimeError
+			(try let ts = downcast t' in let r = Set(ts, m) in if typecheck(TSet(ts), r) then r else raise ( RuntimeError "Wrong type")
+			with  err -> raise ( RuntimeError "Cannot downcast")))
+			| _ -> raise ( RuntimeError "Wrong type")
 		)

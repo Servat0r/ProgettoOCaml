@@ -21,13 +21,13 @@ let rec println (e : evT) =
         | _ -> failwith("Unprintable value")
 ;;
 
-let env0=global_envt;;
+let env0=emptyenv;;
 
 (* Permette di stampare (sia da shell sia dopo compilazione) il risultato delle valutazione di un'espressione *)
 let peval (e: exp) (s: evT env) = println (eval e s);;
 
 (* Stampa un messaggio di errore (da usare nei try-with in fondo) *)
-let print_error () = print_string "RuntimeError\n"
+let print_error s = print_string (String.concat "" [s; "\n"])
 
 (* Test per funzioni ricorsive *)
 let a' = Let("x",EInt 6,Letrec("fact","n", IfThenElse(Eq(Den("n"), EInt 1), EInt 1, Times(Den("n"), Apply(Den("fact"), Sub(Den("n"), EInt 1)))),Apply(Den("fact"), Den "x")))
@@ -44,8 +44,6 @@ let b = Let("y", EInt 4, Den("y"))
 (* Test per booleani *)
 let c = Let("z", True, Den("z"))
 
-(* Test per funzioni primitive aggiunte: pow , lessThan, greaterThan*)
-let potenza=Pow(EInt 2,EInt 4)
 
 let meno_di1=LessThan(EInt 2,EInt 4)
 
@@ -137,9 +135,8 @@ peval b env0;;
 peval c env0;;
 
 
-(*Stampa funzioni primitive: pow , LessThan, GreaterThan*)
+(*Stampa funzioni primitive: LessThan, GreaterThan*)
 Printf.printf "\n\n****Funzioni primitive aggiunte****\n";;
-peval potenza env0;;
 peval meno_di1 env0;;
 peval meno_di2 env0;;
 peval piu_di1 env0;;
@@ -191,9 +188,9 @@ peval prova_map env0;;
 
 (*Errori*)
 Printf.printf "\n\n****Errori****\n";;
-try peval errore_set_1_elem env0 with RuntimeError -> print_error();;
-try peval errore_set_tipi_diversi env0 with RuntimeError  -> print_error();;
-try peval errore_controllo_contenimento env0 with RuntimeError -> print_error();;
-try peval errore_contenimento_insiemi env0 with RuntimeError -> print_error();;
-try peval errore_inserimento env0 with RuntimeError -> print_error();;
-try peval errore_rimozione env0 with RuntimeError -> print_error();;
+try peval errore_set_1_elem env0 with (RuntimeError s) -> print_error s;;
+try peval errore_set_tipi_diversi env0 with (RuntimeError s)  -> print_error s;;
+try peval errore_controllo_contenimento env0 with (RuntimeError s) -> print_error s;;
+try peval errore_contenimento_insiemi env0 with (RuntimeError s) -> print_error s;;
+try peval errore_inserimento env0 with (RuntimeError s) -> print_error s;;
+try peval errore_rimozione env0 with (RuntimeError s) -> print_error s;;

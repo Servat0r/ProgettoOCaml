@@ -1,8 +1,10 @@
 *.txt
 *.cmi
 *.cmx
+*.cmo
 *.o
 *.exe
 MiniCamlTypedFuns.ml
 MiniCamlWithTVal.ml
 *.pdf
+test
