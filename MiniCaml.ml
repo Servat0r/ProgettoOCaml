@@ -8,15 +8,8 @@ type ide = string;;
 (* tsub sono esattamente i tipi di dato ammissibili per un insieme: interi, stringhe e booleani *)
 type tsub = TInt | TBool | TString
 
-(* "Nomi" dei tipi di dato presenti per migliorare la leggibilità, anziché usare degli string literals come "int", "bool" etc;
-i tipi TInt ... TString sono dichiarati per sfruttare l' "aliasing" *)
-type tname =  TInt 
-	| TBool 
-	| TString
-	| TClosure 
-	| TRecClosure 
-	| TSet of tsub (* Insieme *)
-	| TUnBound
+(* I tipi TInt ... TString sono dichiarati nuovamente per sfruttare l' "aliasing", si vedano upcast e downcast *)
+type tname =  TInt | TBool | TString | TClosure | TRecClosure | TSet of tsub | TUnBound
 
 (* Abstract Expressions = espressioni nella sintassi astratta, compongono l'Albero di Sintassi Astratta *)
 type exp = EInt of int
@@ -27,7 +20,7 @@ type exp = EInt of int
 		(* Operatori binari da interi a interi*)
 		| Sum of exp * exp
 		| Sub of exp * exp
-		| Times of exp * exp
+		| Prod of exp * exp
 		(* Operatori da interi a booleani *)
 		| IsZero of exp
 		| Eq of exp * exp
@@ -38,34 +31,34 @@ type exp = EInt of int
 		| Or of exp*exp
 		| Not of exp
 		(* Controllo del flusso, assegnamenti, funzioni *)
-		| IfThenElse of exp * exp * exp (* IfThenElse è un'espressione, per cui la seconda e la terza espressione dovranno avere lo stesso tipo *)
-		| Let of ide * exp * exp (* ide = nome della variabile; exp1 = valore della variabile; exp2 = espressione da valutare *)
-		| Letrec of ide * ide  * exp * exp (* ide1 = nome della funzione; ide2 = nome dell'argomento; tname1 = tipo della funzione;
-		exp1 = corpo della funzione; exp2 = espressione da valutare *)
-		| Fun of ide * exp (* NON più polimorfe (necessario per controllare che si passi un predicato a For_all, Exists etc);
-		ide = argomento della funzione; tname = tipo della funzione; exp = corpo della funzione *)
+		| IfThenElse of exp * exp * exp
+		| Let of ide * exp * exp
+		| Letrec of ide * ide  * exp * exp
+		| Fun of ide * exp
 		| Apply of exp * exp
 		(* Costruttori di insiemi *)
 		| Empty of tsub (* Insieme vuoto *)
 		| Singleton of tsub*exp (* Insieme con un solo elemento *)
-		| Of of tsub*(exp list) (* Insieme con uno o più elementi *)
+		| Of of tsub*setEl (* Insieme con uno o più elementi *)
 		(* Operatori unari su insiemi*)
-		| IsEmpty of exp (* Insieme vuoto? *)
-		| GetMin of exp (* Minimo elemento di un insieme; ma vale solo per gli interi? *)
-		| GetMax of exp (* Massimo elemento di un insieme; ma vale solo per gli interi? *)
+		| IsEmpty of exp 
+		| GetMin of exp 
+		| GetMax of exp
 		(* Operatori binari su insiemi *)
-		| Union of exp*exp (* Unione di insiemi *)
-		| Intersection of exp*exp (* Intersezione di insiemi *)
-		| Difference of exp*exp (* Differenza di insiemi *)
+		| Union of exp*exp
+		| Intersection of exp*exp 
+		| Difference of exp*exp 
 		| Insert of exp*exp
 		| Remove of exp*exp
 		| Contains of exp*exp
 		| IsSubset of exp*exp
 		(* Operatori funzionali su insiemi *)
-		| For_all of exp*exp (* controlla se tutti gli elementi dell’insieme soddisfano la proprietà definita dal parametro “predicate” *)
-		| Exists of exp*exp (* controlla se esiste almeno un elemento dell’insieme che soddisfa la proprietà definita dal parametro “predicate” *)
-		| Filter of exp*exp (* restituisce l’insieme degli elementi dell’insieme che soddisfano la proprietà definita dal parametro “predicate” *)
-		| Map of exp*exp (* restitusce l’insieme dei valori v tali che v = function(x) dove x appartiene a aSet *)
+		| For_all of exp*exp 
+		| Exists of exp*exp 
+		| Filter of exp*exp 
+		| Map of exp*exp
+		(* Sintassi astratta per i valori degli elementi di un set *)
+		and setEl = Void | Item of exp*setEl
 
 (* Ambiente polimorfo; avremo un solo ambiente (globale), eventualmente copiato e passato ad altre funzioni *)
 type 't env = string -> 't
@@ -74,13 +67,12 @@ type 't env = string -> 't
 type evT = Int of int 
 	| Bool of bool 
 	| String of string 
-	| Closure of ide * exp * evT env (* ide = nome dell'argomento; tname = tipo della funzione; exp = corpo della funzione; evT env =
-	ambiente della funzione *)
-	| RecClosure of ide * ide * exp * evT env (* ide1 = nome della funzione; ide2 = nome dell'argomento; tname = tipo della funzione; 
-	exp = corpo della funzione; evT env = ambiente della funzione*) 
+	| Closure of ide * exp * evT env 
+	| RecClosure of ide * ide * exp * evT env
 	| Set of tsub*(evT list)
 	| UnBound
 
+(* Errori a runtime *)
 exception RuntimeError of string
 
 (* Una mappa da evT a tname che a ogni valore col suo descrittore di tipo associa il nome del tipo *)
@@ -107,16 +99,12 @@ let (downcast : tname -> tsub) = function x -> match x with
 	| _ -> raise ( RuntimeError "Cannot downcast")
 
 
-(*
-Per l'ambiente ne usiamo solo uno, per facilitare la creazione delle chiusure; di conseguenza, dovremo ricordarci dei nomi dei parametri
-attuali di una funzione per ripristinare eventuali valori globali nel momento in cui si cancella un riferimento locale 
-*)
 
-(* Ambiente vuoto; non dovrà essere accessibile *)
+(* Ambiente vuoto *)
 let emptyenv = function x -> UnBound
 
 
-(* Type-checking; non dovrà essere accessibile *)
+(* Type-checking *)
 let typecheck ((x, y) : (tname*evT)) = match x with
         | TInt -> 
             (match y with 
@@ -158,15 +146,12 @@ let typecheck ((x, y) : (tname*evT)) = match x with
 					| _ -> false
 				)
 
-(* Binding fra una stringa x e un valore primitivo evT; può essere usato per binding globali e locali, ovvero per lui NON è possibile
-distinguere se lo si sta utilizzando in un assegnamento locale (Let o Letrec) o in uno globale (Bind): in quest'ultimo cqso i controlli
-necessari (ad esempio per una funzione ricorsiva globale) li fa lui *)
+(* Binding fra una stringa x e un valore primitivo evT *)
 let bind (s: evT env) (x: string) (v: evT) = function (i: string) -> if (i = x) then v else (s i)
 
 
 
 (* UTILITIES per le primitive del linguaggio (NON sono primitive!) *)
-
 
 (* Controlla se una lista contiene o meno l'elemento dato *)
 let rec list_contains l x = match l with
@@ -189,14 +174,14 @@ let rec list_remove l x = match l with
 	| [] -> raise ( RuntimeError "")
 	| p::q -> if (p = x) then q else p::(list_remove q x)
 
-(* Calcola il massimo fra due elementi di tipo Int / Bool / String *)
+(* Calcola il massimo fra due elementi di tipo TInt / TBool / TString *)
 let max (a,b) = match (a,b) with
 	| (Int(p), Int(q)) -> if (compare p q) = 1 then a else b
 	| (Bool(p), Bool(q)) -> if (compare p q) = 1 then a else b
 	| (String(p), String(q)) -> if (compare p q) = 1 then a else b
 	| _ -> raise (RuntimeError "Uncomparable values")
 
-(* Calcola il minimo fra due elementi di tipo Int / Bool / String *)
+(* Calcola il minimo fra due elementi di tipo TInt / TBool / TString *)
 let min (a,b) = match (a,b) with
 	| (Int(p), Int(q)) -> if (compare p q) = 1 then b else a
 	| (Bool(p), Bool(q)) -> if (compare p q) = 1 then b else a
@@ -225,25 +210,25 @@ let is_zero(x) = match (typecheck(TInt,x),x) with
 	| (true, Int(v)) -> Bool(v = 0)
 	| (_, _) -> raise ( RuntimeError "Wrong type")
 
-(* Uguaglianza fra interi; non dovrà essere accessibile *)
+(* Uguaglianza fra interi *)
 let int_eq(x,y) =   
 match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
   | (true, true, Int(v), Int(w)) -> Bool(v = w)
   | (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
-(* Somma fra interi; non dovrà essere accessibile *)	   
+(* Somma fra interi *)	   
  let int_plus(x, y) = 
  match(typecheck(TInt,x), typecheck(TInt,y), x, y) with
   | (true, true, Int(v), Int(w)) -> Int(v + w)
   | (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
-(* Differenza fra interi; non dovrà essere accessibile *)
+(* Differenza fra interi *)
 let int_sub(x, y) = 
  match(typecheck(TInt,x), typecheck(TInt,y), x, y) with
   | (true, true, Int(v), Int(w)) -> Int(v - w)
   | (_,_,_,_) -> raise ( RuntimeError "Wrong type")
 
-(* Prodotto fra interi; non dovrà essere accessibile *)
+(* Prodotto fra interi *)
 let int_times(x, y) = match(typecheck(TInt,x), typecheck(TInt,y), x, y) with
  	| (true, true, Int(v), Int(w)) -> Int(v * w)
   	| (_,_,_,_) -> raise ( RuntimeError "Wrong type")
@@ -256,6 +241,7 @@ let less_than(x, y) = match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
 let greater_than(x, y) = match (typecheck(TInt,x), typecheck(TInt,y), x, y) with
 	| (true, true, Int(v), Int(w)) -> Bool(v > w)
 	| (_,_,_,_) -> raise ( RuntimeError "Wrong type")
+
 
 let bool_and(x,y) = match (typecheck(TBool,x), typecheck(TBool,y), x, y) with
 	| (true, true, Bool(v), Bool(w)) -> Bool(v && w)
@@ -280,9 +266,12 @@ let new_of ((t , l) : (tsub*(evT list))) = if checkNotEquals l then (let s = Set
 	if typecheck(TSet(t), s) then s else raise ( RuntimeError "Wrong type")) else raise ( RuntimeError "Duplicated values!")
 
 (* Verifica se un insieme è vuoto *)
-let is_empty (x : evT) = match x with
-	| Set(t,l) -> if (l = []) then Bool(true) else Bool(false)
-	| _ -> raise ( RuntimeError "Wrong type")
+let is_empty (x : evT) = let empty_list l = match l with
+	| [] -> true
+	| _ -> false
+	in match x with
+		| Set(t,l) -> Bool(empty_list l)
+		| _ -> raise ( RuntimeError "Wrong type")
 
 (* Verifica se un insieme contiene un elemento dato *)
 let set_contains(s,x) = match s with
@@ -297,11 +286,13 @@ let set_is_subset (s1, s2) = match s1 with
 	)
 	| _ -> raise ( RuntimeError "Wrong type")
 
+(* Inserisce un elemento in un insieme *)
 let set_insert(e1, e2) = match e1 with
 	| Set(t,l) -> if typecheck(upcast t,e2) then ( if list_contains l e2 then Set(t,l) else Set(t, e2::l)) 
 		else raise ( RuntimeError "Wrong type")
 	| _ -> raise ( RuntimeError "Wrong type")
 
+(* Rimuove un elemento da un insieme *)
 let set_remove(e1, e2) = match e1 with
 	| Set(t,l) -> if typecheck(upcast t,e2) then (if list_contains l e2 then Set(t, list_remove l e2) else raise ( RuntimeError "Not existing element!") ) 
 		else raise ( RuntimeError "Wrong type")
@@ -319,9 +310,6 @@ let set_getMin(e1) = match e1 with
 
 
 
-
-(* Valutazione del programma *)
-
 (* Valuta un'espressione restituendo un tipo primitivo del linguaggio (evT) *)
 let rec eval (e:exp) (s:evT env) : evT = match e with
 	| EInt(n) -> Int(n)
@@ -330,7 +318,7 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 	| EString(s) -> String(s)
 	| Den(i) -> (s i)
 
-	| Times(e1,e2) -> int_times((eval e1 s), (eval e2 s))
+	| Prod(e1,e2) -> int_times((eval e1 s), (eval e2 s))
 	| Sum(e1, e2) -> int_plus((eval e1 s), (eval e2 s))
 	| Sub(e1, e2) -> int_sub((eval e1 s), (eval e2 s))
 	
@@ -348,6 +336,12 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 		|(true, Bool(false)) -> eval e3 s
 		|(_,_) -> raise ( RuntimeError "Wrong type")
 	)
+	(* let g = eval e1 s in (match typecheck(TBool, g) with
+		| true -> let f2 = eval e2 s in let f3 = eval e3 s in let t = getType f2 in let t' = getType f3 in (if t = t') then 
+			(if (g = Bool(true)) then f2 else f3) else raise RuntimeError("The two branches don't have the same type")
+		| false -> raise RuntimeError("Non-boolean guard")
+	)
+	*)
 	| Let(i, e, ebody) -> eval ebody (bind s i (eval e s))
 	| Fun(arg, ebody) -> Closure(arg,ebody,s)
 	| Letrec(f, arg, fBody, leBody) ->
@@ -369,8 +363,8 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 	| Empty(t) -> new_empty(t)
 	| Singleton(t, e1) -> let f = eval e1 s in new_singleton(t,f)
 	| Of(t, l) -> let rec evalList k s = match k with
-		|[] -> []
-		|p::q -> let r = eval p s in let ls = evalList q s in if list_contains ls r then ls else r::ls
+		|Void -> []
+		|Item(p,q) -> let r = eval p s in let ls = evalList q s in if list_contains ls r then ls else r::ls
 	in (let m = evalList l s in new_of(t,m))
 
 	| Union(e1, e2) -> let f1 = eval e1 s in let f2 = eval e2 s in (match f1 with

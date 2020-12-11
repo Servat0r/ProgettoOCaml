@@ -30,7 +30,7 @@ let peval (e: exp) (s: evT env) = println (eval e s);;
 let print_error s = print_string (String.concat "" [s; "\n"])
 
 (* Test per funzioni ricorsive *)
-let a' = Let("x",EInt 6,Letrec("fact","n", IfThenElse(Eq(Den("n"), EInt 1), EInt 1, Times(Den("n"), Apply(Den("fact"), Sub(Den("n"), EInt 1)))),Apply(Den("fact"), Den "x")))
+let a' = Let("x",EInt 6,Letrec("fact","n", IfThenElse(Eq(Den("n"), EInt 1), EInt 1, Prod(Den("n"), Apply(Den("fact"), Sub(Den("n"), EInt 1)))),Apply(Den("fact"), Den "x")))
 
 (* Test per scoping statico *)
 let a'' = Let("n", EInt 5, Let("f", Fun("x", Sum(Den("x"), Den("n"))), Let("n", EInt 67, Apply(Den("f"), EInt 5))))
@@ -62,7 +62,7 @@ let insieme_vuoto = Empty(TInt)
 
 let insieme_1_elem = Singleton(TInt,EInt 4)
 
-let insieme = Of(TInt,[EInt 4;EInt 8])
+let insieme = Of(TInt,Item(EInt 4,Item(EInt 8, Void)))
 
 let verifica_vuoto1 = IsEmpty(insieme_vuoto)
 
@@ -74,7 +74,7 @@ let non_contiene_x = Contains (insieme,EInt 100)
 
 let sottoinsieme= IsSubset(insieme_1_elem,insieme)
 
-let non_sottoinsieme= IsSubset(insieme_1_elem,Of(TInt,[EInt 200;EInt 300;EInt 400]))
+let non_sottoinsieme= IsSubset(insieme_1_elem,Of(TInt,Item(EInt 200, Item(EInt 300, Item(EInt 400,Void)))))
 
 let insert=Insert(insieme,EInt 300)
 
@@ -96,18 +96,18 @@ let lista_minori=Filter(Fun("x",LessThan(Den "x",EInt 5)), insieme)
 
 let lista_maggiori=Filter(Fun("x",GreaterThan(Den "x", EInt 3)),insieme)
 
-let prova_map=Let("f", Fun("x", IfThenElse(Eq(Den "x", EInt 0), EString "p", EString "q")), Let("s", Of(TInt, [EInt 0; EInt 54; EInt 8]), Map(Den "f", Den "s")))
+let prova_map=Let("f", Fun("x", IfThenElse(Eq(Den "x", EInt 0), EString "p", EString "q")), Let("s", Of(TInt, Item(EInt 0, Item(EInt 54, Item(EInt 8, Void)))), Map(Den "f", Den "s")))
 
-let prova_unione = Union(Of(TInt, [EInt 6; EInt 8; EInt 3; EInt 45; EInt 12]),Of(TInt, [EInt 5; EInt 8; EInt 3; EInt 89]))
+let prova_unione = Union(Of(TInt, Item(EInt 6, Item(EInt 8, Item(EInt 3, Item(EInt 45, Item(EInt 12, Void)))))),Of(TInt, Item(EInt 5, Item(EInt 8, Item(EInt 3, Item(EInt 89, Void))))))
 
-let prova_intersezione = Intersection(Of(TInt, [EInt 6; EInt 8; EInt 3; EInt 45; EInt 12]),Of(TInt, [EInt 5; EInt 8; EInt 3; EInt 89]))
+let prova_intersezione = Intersection(Of(TInt, Item(EInt 6, Item(EInt 8, Item(EInt 3, Item(EInt 45, Item(EInt 12, Void)))))),Of(TInt, Item(EInt 5, Item(EInt 8, Item(EInt 3, Item(EInt 89,Void))))))
 
-let prova_differenza = Difference(Of(TInt, [EInt 6; EInt 8; EInt 3; EInt 45; EInt 12]),Of(TInt, [EInt 5; EInt 8; EInt 3; EInt 89]))
+let prova_differenza = Difference(Of(TInt, Item(EInt 6, Item(EInt 8, Item(EInt 3, Item(EInt 45, Item(EInt 12, Void)))))),Of(TInt, Item(EInt 5, Item(EInt 8, Item(EInt 3, Item(EInt 89, Void))))))
 
 (* Errori *)
 let errore_set_1_elem=Singleton(TInt,EString "aiutooo") 
 
-let errore_set_tipi_diversi=Of(TInt,[EString "erorre"; EInt 8]) 
+let errore_set_tipi_diversi=Of(TInt,Item(EString "erorre", Item(EInt 8, Void))) 
 
 let errore_controllo_contenimento=Contains(insieme,EString "nope") 
 
