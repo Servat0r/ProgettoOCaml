@@ -19,7 +19,7 @@ type exp = EInt of int
 		| Den of ide
 		(* Operatori binari da interi a interi*)
 		| Sum of exp * exp
-		| Sub of exp * exp
+		| Diff of exp * exp
 		| Prod of exp * exp
 		(* Operatori da interi a booleani *)
 		| IsZero of exp
@@ -300,12 +300,12 @@ let set_remove(e1, e2) = match e1 with
 
 (* Massimo di un insieme di interi / stringhe / booleani *)
 let set_getMax(e1) = match e1 with
-	| Set(t, l) -> list_max t l
+	| Set(t, l) -> if (l = []) then raise (RuntimeError "Cannot get max on an empty set!") else list_max t l
 	| _ -> raise ( RuntimeError "Wrong type")
 
 (* Minimo di un insieme di interi / stringhe / booleani *)
 let set_getMin(e1) = match e1 with
-	| Set(t,l) -> list_min t l
+	| Set(t,l) -> if (l = []) then raise (RuntimeError "Cannot get min on an empty set!") else list_min t l
 	| _ -> raise ( RuntimeError "Wrong type")
 
 
@@ -320,7 +320,7 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 
 	| Prod(e1,e2) -> int_times((eval e1 s), (eval e2 s))
 	| Sum(e1, e2) -> int_plus((eval e1 s), (eval e2 s))
-	| Sub(e1, e2) -> int_sub((eval e1 s), (eval e2 s))
+	| Diff(e1, e2) -> int_sub((eval e1 s), (eval e2 s))
 	
 	| IsZero(e1) -> is_zero (eval e1 s)
 	| Eq(e1, e2) -> int_eq((eval e1 s), (eval e2 s))
@@ -336,12 +336,6 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 		|(true, Bool(false)) -> eval e3 s
 		|(_,_) -> raise ( RuntimeError "Wrong type")
 	)
-	(* let g = eval e1 s in (match typecheck(TBool, g) with
-		| true -> let f2 = eval e2 s in let f3 = eval e3 s in let t = getType f2 in let t' = getType f3 in (if t = t') then 
-			(if (g = Bool(true)) then f2 else f3) else raise RuntimeError("The two branches don't have the same type")
-		| false -> raise RuntimeError("Non-boolean guard")
-	)
-	*)
 	| Let(i, e, ebody) -> eval ebody (bind s i (eval e s))
 	| Fun(arg, ebody) -> Closure(arg,ebody,s)
 	| Letrec(f, arg, fBody, leBody) ->
@@ -406,7 +400,7 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 	| GetMax(e1) -> let f1 = eval e1 s in set_getMax(f1)
 
 	| For_all(e1, e2) -> let rec forall_list(f,l) = match l with
-		|[] -> Bool(true)
+		|[] -> Bool(true) (* Vacuamente vero *)
 		|p::q -> ( match f with
 			|Closure(arg,fbody,fDecEnv) -> 
 				let fExEnv = bind fDecEnv arg p in
@@ -429,7 +423,7 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 		)
 
 	| Exists(e1, e2) -> let rec exists_list(f,l) = match l with
-		|[] -> Bool(false)
+		|[] -> Bool(false) (* Vacuamente falso *)
 		|p::q -> ( match f with
 			|Closure(arg,fbody,fDecEnv) -> 
 				let fExEnv = bind fDecEnv arg p in
@@ -452,7 +446,7 @@ let rec eval (e:exp) (s:evT env) : evT = match e with
 		)
 
 	| Filter(e1, e2) -> let rec filter_list(f,l) = match l with
-		|[] -> []
+		|[] -> [] (* Nulla da filtrare se l'insieme è vuoto *)
 		|p::q -> ( match f with
 			|Closure(arg,fbody,fDecEnv) -> 
 				let fExEnv = bind fDecEnv arg p in

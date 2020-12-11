@@ -6,5 +6,6 @@
 *.exe
 MiniCamlTypedFuns.ml
 MiniCamlWithTVal.ml
+*.docx
 *.pdf
 test

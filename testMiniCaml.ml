@@ -30,7 +30,7 @@ let peval (e: exp) (s: evT env) = println (eval e s);;
 let print_error s = print_string (String.concat "" [s; "\n"])
 
 (* Test per funzioni ricorsive *)
-let a' = Let("x",EInt 6,Letrec("fact","n", IfThenElse(Eq(Den("n"), EInt 1), EInt 1, Prod(Den("n"), Apply(Den("fact"), Sub(Den("n"), EInt 1)))),Apply(Den("fact"), Den "x")))
+let a' = Let("x",EInt 6,Letrec("fact","n", IfThenElse(Eq(Den("n"), EInt 1), EInt 1, Prod(Den("n"), Apply(Den("fact"), Diff(Den("n"), EInt 1)))),Apply(Den("fact"), Den "x")))
 
 (* Test per scoping statico *)
 let a'' = Let("n", EInt 5, Let("f", Fun("x", Sum(Den("x"), Den("n"))), Let("n", EInt 67, Apply(Den("f"), EInt 5))))
